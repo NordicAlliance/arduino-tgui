@@ -14,7 +14,7 @@
 
 #define USE_SI1132  1
 // #define USE_VL53L0X 1
-// #define USE_BME280  1
+#define USE_BME280  1
 #define USE_BATTERY 1
 
 const uint8_t backlightPin = 5;
@@ -32,93 +32,139 @@ struct sensorList
 #ifdef USE_VL53L0X
 SensorVL53L0X tof = SensorVL53L0X(0x67, 100);
 ProgressBar tofPbar = ProgressBar(
-    {50, 220},
-    {260, 12},
-    {8, 12},
-    10,
+    {10, 220},
+    {300, 12},
+    {4, 12},
+    5,
     foregroundColor,
     &tof,
     10,
+    VL53L0X_DISTANCE);
+Label tofLable = Label(
+    {10, 50},
+    foregroundColor,
+    &tof,
     "mm",
+    5,
+    2,
+    4,
+    Label::DRAW_ON_RIGHT,
     VL53L0X_DISTANCE);
 #endif
 
 #ifdef USE_SI1132
 SensorSi1132 light = SensorSi1132(0x60, 100);
 ProgressBar lightPbar = ProgressBar(
-    {50, 50},
-    {260, 12},
-    {4, 12},
+    {10, 190},
+    {300, 8},
+    {4, 8},
     5,
     foregroundColor,
     &light,
     20,
-    "Lx",
     SI1132_VISIBLE);
 ProgressBar irPbar = ProgressBar(
-    {50, 75},
-    {260, 12},
-    {4, 12},
+    {10, 205},
+    {300, 8},
+    {4, 8},
     5,
     foregroundColor,
     &light,
     50,
-    "IR",
     SI1132_IR);
 ProgressBar uvPbar = ProgressBar(
-    {50, 100},
-    {260, 12},
-    {4, 12},
+    {10, 220},
+    {300, 8},
+    {4, 8},
     5,
     foregroundColor,
     &light,
     20,
-    "UV",
     SI1132_UV);
 #endif
 
 #ifdef USE_BME280
 SensorBME280 bme = SensorBME280(0x76, 500);
-ProgressBar humidityPbar = ProgressBar(
-    {50, 125},
-    {260, 12},
-    {4, 12},
-    5,
+// ProgressBar humidityPbar = ProgressBar(
+//     {widgetStart, 125},
+//     {widgetWidth, 12},
+//     {4, 12},
+//     5,
+//     foregroundColor,
+//     &bme,
+//     1,
+//     BME280_HUMIDITY);
+// ProgressBar temperaturePbar = ProgressBar(
+//     {widgetStart, 150},
+//     {widgetWidth, 12},
+//     {4, 12},
+//     5,
+//     foregroundColor,
+//     &bme,
+//     1,
+//     BME280_TEMPERATURE);
+// ProgressBar pressurePbar = ProgressBar(
+//     {widgetStart, 175},
+//     {widgetWidth, 12},
+//     {4, 12},
+//     5,
+//     foregroundColor,
+//     &bme,
+//     50,
+//     BME280_PRESSURE);
+// ProgressBar altitudePbar = ProgressBar(
+//     {widgetStart, 200},
+//     {widgetWidth, 12},
+//     {4, 12},
+//     5,
+//     foregroundColor,
+//     &bme,
+//     5,
+//     BME280_ALTITUDE);
+Label humidityLable = Label(
+    {20, 50},
     foregroundColor,
     &bme,
-    1,
     "%",
-    BME280_HUMIDITY);
-ProgressBar temperaturePbar = ProgressBar(
-    {50, 150},
-    {260, 12},
-    {4, 12},
     5,
-    foregroundColor,
-    &bme,
-    1,
-    "c",
-    BME280_TEMPERATURE);
-ProgressBar pressurePbar = ProgressBar(
-    {50, 175},
-    {260, 12},
-    {4, 12},
-    5,
-    foregroundColor,
-    &bme,
     2,
-    "hp",
-    BME280_PRESSURE);
-ProgressBar altitudePbar = ProgressBar(
-    {50, 200},
-    {260, 12},
-    {4, 12},
-    5,
+    3,
+    Label::DRAW_ON_BOTTOM,
+    BME280_HUMIDITY,
+    0);
+Label temperatureLable = Label(
+    {20, 120},
     foregroundColor,
     &bme,
+    "c",
     5,
+    2,
+    3,
+    Label::DRAW_ON_BOTTOM,
+    BME280_TEMPERATURE,
+    0);
+Label pressureLable = Label(
+    {140, 50},
+    foregroundColor,
+    &bme,
+    "hPa",
+    5,
+    2,
+    5,
+    Label::DRAW_ON_BOTTOM,
+    BME280_PRESSURE,
+    0);
+Label altitudeLable = Label(
+    {140, 120},
+    foregroundColor,
+    &bme,
     "m",
-    BME280_ALTITUDE);
+    5,
+    2,
+    5,
+    Label::DRAW_ON_BOTTOM,
+    BME280_ALTITUDE,
+    0);
 #endif
 
 #ifdef USE_BATTERY
@@ -131,8 +177,17 @@ ProgressBar batteryPbar = ProgressBar(
     foregroundColor,
     &battery,
     1,
-    "%  ",
     BATTERY_LEVEL);
+Label batteryVoltageLable = Label(
+    {200, 10},
+    foregroundColor,
+    &battery,
+    "mv",
+    2,
+    1,
+    4,
+    Label::DRAW_ON_RIGHT,
+    BATTERY_VOLTAGE);
 #endif
 
 #ifdef USE_VL53L0X
@@ -201,57 +256,72 @@ void setup()
     Wire.begin();
     InitializeScreen();
 
-    #ifdef USE_BATTERY
+#ifdef USE_BATTERY
     battery.init();
     batteryPbar.init();
+    batteryVoltageLable.init();
     batterEvent.start();
-    #endif
-    #ifdef USE_VL53L0X
+#endif
+
+#ifdef USE_VL53L0X
     tof.init();
     tofPbar.init();
+    tofLable.init();
     tofEvent.start();
-    #endif
-    #ifdef USE_BME280
+#endif
+
+#ifdef USE_BME280
     bme.init();
-    temperaturePbar.init();
-    humidityPbar.init();
-    pressurePbar.init();
-    altitudePbar.init();
+    // temperaturePbar.init();
+    // humidityPbar.init();
+    // pressurePbar.init();
+    // altitudePbar.init();
+    humidityLable.init();
+    temperatureLable.init();
+    pressureLable.init();
+    altitudeLable.init();
     bmeEvent.start();
-    #endif
-    #ifdef USE_SI1132
+#endif
+
+ #ifdef USE_SI1132
     light.init();
     lightPbar.init();
     irPbar.init();
     uvPbar.init();
     lightEvent.start();
-    #endif
+#endif
 }
 
 void loop(void)
 {
-    #ifdef USE_BATTERY
+#ifdef USE_BATTERY
     batterEvent.update();
     batteryPbar.update();
-    #endif
+    batteryVoltageLable.update();
+#endif
 
-    #ifdef USE_VL53L0X
+#ifdef USE_VL53L0X
     tofEvent.update();
     tofPbar.update();
-    #endif
+    tofLable.update();
+#endif
 
-    #ifdef USE_BME280
+#ifdef USE_BME280
     bmeEvent.update();
-    humidityPbar.update();
-    temperaturePbar.update();
-    pressurePbar.update();
-    altitudePbar.update();
-    #endif
+    // humidityPbar.update();
+    // temperaturePbar.update();
+    // pressurePbar.update();
+    // altitudePbar.update();
+    humidityLable.update();
+    temperatureLable.update();
+    pressureLable.update();
+    altitudeLable.update();
+#endif
 
-    #ifdef USE_SI1132
+#ifdef USE_SI1132
     lightEvent.update();
     lightPbar.update();
     irPbar.update();
     uvPbar.update();
-    #endif
+#endif
 }

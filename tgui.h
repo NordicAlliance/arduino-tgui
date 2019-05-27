@@ -34,23 +34,30 @@
 #define Sprint(a)
 #endif
 
-#define _cs 10
-#define _dc 9
-#define _rst 8
-
-
 /* COMMANDS */
+#define pbar_show_border
 
 /* Parameters */
 #define foregroundColor ILI9340_YELLOW
 #define backgroundColor 0x0016//ILI9340_BLUE
 #define defaultRotation 1
-#define pbar_text_width 42
-#define pbar_show_border
+#define defaultTextSize 2
+#define textPixelW(x) (6 * (x))
+#define textPixelH(x) (8 * (x))
+#define pbar_text_width (7 * textPixelW(defaultTextSize))
+#define screenWidth 320
+#define screenHeight 240
+#define screenPadding 10
+#define borderPadding 2
+#define widgetStart (pbar_text_width + screenPadding)
+#define widgetWidth (screenWidth - widgetStart - screenPadding)
 #define FILTER_SAMPLE_SIZE 7
 #define SEALEVELPRESSURE_HPA (1013.25)
 
 /* REGISTERS */
+#define _cs 10
+#define _dc 9
+#define _rst 8
 
 enum
 {
@@ -209,15 +216,17 @@ class TguiElement
         /* data */
         Location _loc;
         Size _size;
-        Size _block;
-        uint16_t _increment;
         uint16_t _color;
+        float _value;
+        uint8_t _dataType;
+
     public:
         TguiElement(){};
         ~TguiElement(){};
         virtual void init(){};
         virtual void update(uint16_t value){};
-        Sensor *sensor;
+        void drawBorder();
+        Sensor *_sensor;
         Adafruit_GFX *screen;
 };
 
@@ -226,9 +235,8 @@ class ProgressBar : public TguiElement
     private:
         uint8_t _progress;
         uint16_t _dataScaleRatio;
-        const char * _unit;
-        uint8_t _dataType;
-        float _value;
+        Size _block;
+        uint16_t _increment;
 
     public:
         ProgressBar(
@@ -239,13 +247,9 @@ class ProgressBar : public TguiElement
             uint16_t color,
             Sensor *sensor,
             uint16_t ratio,
-            const char *unit,
             uint8_t dataType);
         void init();
         void update();
-        void drawBorder();
-        void drawUnit();
-        void drawDigits(int value);
         void drawBlocks(uint8_t previousProgress, uint8_t progress);
 };
 
@@ -263,9 +267,37 @@ class FramedText : public TguiElement
     public:
 };
 
-class BigText : public TguiElement
+class Label : public TguiElement
 {
-    private:
-        /* data */
-    public:
+private:
+    uint8_t _dataType;
+    const char *_unit;
+    uint8_t _textSize;
+    uint8_t _unitSize;
+    bool _unitLocation;
+    uint8_t _nDigitsDisplay;
+
+public:
+    Label(
+        Location loc,
+        uint16_t color,
+        Sensor *sensor,
+        const char *unit,
+        uint8_t textSize,
+        uint8_t unitSize,
+        uint8_t nDigitMax = 4,
+        bool unitLocation = DRAW_ON_RIGHT,
+        uint8_t dataType = 0,
+        uint8_t nDigitsDisplay = 0);
+    void init();
+    void update();
+    void drawUnit();
+    void drawDigits(float digits);
+    void drawPadding(int value);
+
+    enum
+    {
+        DRAW_ON_BOTTOM,
+        DRAW_ON_RIGHT
+    };
 };

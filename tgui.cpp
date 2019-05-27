@@ -18,12 +18,28 @@ void InitializeScreen()
     tft.fillScreen(backgroundColor);
 }
 
+uint8_t countDigits(int num)
+{
+    uint8_t count = 0;
+    if (num < 0)
+    {
+        count++;
+        num = -num;
+    }
+    while (num)
+    {
+        num = num / 10;
+        count++;
+    }
+    return count;
+}
+
 //------------------------- BME280 -------------------------------------/
 void SensorBME280::init()
 {
     bool status = _phy.begin(_address);
     if (!status)
-        Serial.println(F("No BME280 sensor"));
+        Sprintln(F("No BME280 sensor"));
 }
 
 void SensorBME280::addDataPoint(uint8_t channel, float data)
@@ -96,7 +112,9 @@ void SensorBME280::updateHumidity()
 
 void SensorBME280::updatePressure()
 {
-    addDataPoint(BME280_PRESSURE, _phy.readPressure()-100000);
+    // usually the pressure stays between 980 and 1030hpa
+    // Record in Sweden shows the upper and lower bounds are 938.4 and 1063.7hpa
+    addDataPoint(BME280_PRESSURE, _phy.readPressure()-98000);
 }
 
 void SensorBME280::updateAltitude()
@@ -272,7 +290,19 @@ void SensorBattery::updateVoltage()
 
 void SensorBattery::updateLevel()
 {
-    addDataPoint(BATTERY_LEVEL, _phy.level());
+    addDataPoint(BATTERY_LEVEL, _phy.level() + 24); // so that 75%-100% is shown as full power
+}
+
+//------------------------ Tgui Element ---------------------------------------/
+void TguiElement::drawBorder()
+{
+    screen->drawRoundRect(
+        _loc.x - borderPadding * 2,
+        _loc.y - borderPadding,
+        _size.width + borderPadding * 4,
+        _size.height + borderPadding * 2,
+        4,
+        _color);
 }
 
 //------------------------ Progree bar ---------------------------------------/
@@ -282,9 +312,8 @@ ProgressBar::ProgressBar(
     Size block,
     uint16_t increment,
     uint16_t color,
-    Sensor *bondSensor,
+    Sensor *sensor,
     uint16_t ratio,
-    const char *unit,
     uint8_t dataType = 0)
 {
     _loc = loc;
@@ -292,85 +321,20 @@ ProgressBar::ProgressBar(
     _block = block;
     _increment = increment;
     _color = color;
-    sensor = bondSensor;
+    _sensor = sensor;
     _dataType = dataType;
     _dataScaleRatio = ratio;
     _progress = 0;
     screen = &tft,
-    _unit = unit;
     _value = 0;
-}
-
-void ProgressBar::drawBorder()
-{
-#ifdef pbar_show_border
-    screen->drawRect(
-        _loc.x - 2,
-        _loc.y - 2, 
-        _size.width + 4,
-        _size.height + 4,
-        _color);
-#endif
-}
-
-void ProgressBar::drawUnit()
-{
-    screen->setTextSize(1);
-    screen->setTextColor(_color, backgroundColor);
-    screen->setCursor(_loc.x - (strlen(_unit) + 1) * 6, _loc.y);
-    screen->print(_unit);
 }
 
 void ProgressBar::init()
 {
     _progress = 0;
+#ifdef pbar_show_border
     drawBorder();
-    drawUnit();
-}
-
-uint8_t countDigits(int num)
-{
-    uint8_t count = 0;
-    if (num < 0)
-    {
-        count++;
-        num = -num;
-    }
-    while (num)
-    {
-        num = num / 10;
-        count++;
-    }
-    return count;
-}
-
-void ProgressBar::drawDigits(int value)
-{
-    screen->setTextSize(1);
-    screen->setTextColor(_color, backgroundColor);
-    screen->setCursor(_loc.x - pbar_text_width, _loc.y);
-    screen->print(value);
-
-    if(countDigits((int)_value) == countDigits(value))
-        return;
-
-    const int16_t paddingLength = pbar_text_width - (countDigits(value) + strlen(_unit) + 1) * 6;
-
-    Sprint(paddingLength);
-    Sprint(" : ");
-    Sprintln(value);
-
-    if (paddingLength > 0)
-    {
-        for (uint8_t i = 0; i < (paddingLength / 6); i++)
-        {
-            screen->print(" ");
-        }
-    }
-    else
-    {
-        drawUnit();
-    }
+#endif
 }
 
 void ProgressBar::drawBlocks(uint8_t previousProgress, uint8_t progress)
@@ -381,10 +345,6 @@ void ProgressBar::drawBlocks(uint8_t previousProgress, uint8_t progress)
     const uint8_t after = totalBlocks * progress / 100;
     if(before == after)
         return;
-
-    // Sprint(before);
-    // Sprint(" : ");
-    // Sprintln(after);
 
     if(before < after)
     {
@@ -414,7 +374,7 @@ void ProgressBar::drawBlocks(uint8_t previousProgress, uint8_t progress)
 
 void ProgressBar::update()
 {
-    float value = sensor->readDataPoint(_dataType, false);
+    float value = _sensor->readDataPoint(_dataType, false);
 
     if (value < 0)  // for now we don't take negtive values
         return;
@@ -422,14 +382,118 @@ void ProgressBar::update()
     if (value == _value)
         return;
 
-    drawDigits((int)value);
     _value = value;
 
-    uint8_t progress = (value / _dataScaleRatio) > 100 ? 100 : (value / _dataScaleRatio);
+    uint8_t progress = (value / _dataScaleRatio) > 100 ? \
+        100 : (value / _dataScaleRatio);
     
     if (progress == _progress)
         return;
 
     drawBlocks(_progress, progress);
     _progress = progress;
+}
+
+//------------------------ Label ---------------------------------------/
+Label::Label(
+    Location loc,
+    uint16_t color,
+    Sensor *sensor,
+    const char *unit,
+    uint8_t textSize,
+    uint8_t unitSize,
+    uint8_t nDigitMax,
+    bool unitLocation,
+    uint8_t dataType,
+    uint8_t nDigitsDisplay)
+{
+    _loc = loc;
+    _color = color;
+    _sensor = sensor;
+    screen = &tft,
+    _unit = unit;
+    _value = 0;
+    _textSize = textSize;
+    _unitSize = unitSize;
+    _size.height = (unitLocation == DRAW_ON_BOTTOM) ? textPixelH(textSize) + textPixelH(unitSize) : textPixelH(textSize);
+    _size.width = (unitLocation == DRAW_ON_BOTTOM) ? textPixelW(textSize) * nDigitMax : textPixelW(textSize) * nDigitMax + textPixelH(unitSize) * strlen(unit);
+    _unitLocation = unitLocation;
+    _dataType = dataType;
+    _nDigitsDisplay = nDigitsDisplay;
+}
+
+void Label::drawDigits(float value)
+{
+    screen->setTextSize(_textSize);
+    screen->setTextColor(_color, backgroundColor);
+    screen->setCursor(_loc.x, _loc.y);
+
+    if ((countDigits((int)value) * textPixelW(_textSize)) < _size.width)
+    {
+        screen->print(value, _nDigitsDisplay);
+        drawPadding((int)value);
+    }
+    else
+    {
+        screen->print("-");
+        drawPadding(9);
+    }
+}
+
+void Label::drawUnit()
+{
+    screen->setTextSize(_unitSize);
+    screen->setTextColor(_color, backgroundColor);
+    if (_unitLocation == DRAW_ON_BOTTOM)
+    {
+        screen->setCursor(_loc.x, _loc.y + textPixelH(_textSize));
+    }
+    else
+    {
+        screen->setCursor(_loc.x + _size.width - strlen(_unit) * textPixelW(_unitSize), _loc.y);
+    }
+        
+    screen->print(_unit);
+}
+
+void Label::drawPadding(int value)
+{
+    const uint16_t textWidth = textPixelW(_textSize);
+    int16_t paddingLength = _size.width - countDigits(value) * textWidth;
+    if (_unitLocation == DRAW_ON_RIGHT)
+    {
+        paddingLength -= strlen(_unit) * textPixelW(_unitSize);
+    }
+
+    if (paddingLength >= (int)textWidth)
+    {
+        screen->setTextSize(_textSize);
+        screen->setCursor(_loc.x + countDigits(value) * textWidth, _loc.y);
+        for (uint8_t i = 0; i < (paddingLength / textWidth); i++)
+        {
+            screen->print(" ");
+        }
+    }
+}
+
+void Label::init()
+{
+    drawBorder();
+    drawUnit();
+}
+
+void Label::update()
+{
+    float value = _sensor->readDataPoint(_dataType, false);
+
+    if (value == _value)
+        return;
+
+    drawDigits(value);
+    if (countDigits((int)value) != countDigits((int)_value))
+    {
+        drawPadding((int)value);
+    }
+
+    _value = value;
 }
