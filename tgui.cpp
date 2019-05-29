@@ -537,3 +537,102 @@ void Label::update()
         drawDigits(value);
     }
 }
+
+//------------------------ Running Chart ---------------------------------------/
+RunningChart::RunningChart(
+            Location loc,
+            Size size,
+            uint16_t increment,
+            uint16_t color,
+            Sensor *sensor,
+            uint8_t dataType,
+            uint16_t dynamicRangeHigh,
+            uint16_t dynamicRangeLow)
+{
+    _loc = loc;
+    _size = size;
+    _increment = increment;
+    _color = color;
+    _sensor = sensor;
+    _dataType = dataType;
+    _dynamicRangeHigh = dynamicRangeHigh;
+    _dynamicRangeLow = dynamicRangeLow;
+    screen = &tft,
+    _value = 0;
+    _timepoint = 0;
+}
+
+void RunningChart::drawIndicator(uint16_t value)
+{
+    // uint16_t x0 = _loc.x <= (_increment * _timepoint - 2) ? (_loc.x + _increment * _timepoint - 2) : 0;
+    // x0 = (_loc.x + _increment * _timepoint - 2) <= (_loc.x + _size.width) ? x0 : (_loc.x + _size.width);
+
+    // uint16_t x2 = _loc.x <= (_increment * _timepoint - 2) ? (_loc.x + _increment * _timepoint - 2) : 0;
+    // x2 = (_loc.x + _increment * _timepoint - 2) <= (_loc.x + _size.width) ? x2 : (_loc.x + _size.width);
+
+    uint16_t previousPoint = _timepoint - 1;
+    if(_timepoint == 0)
+    {
+        previousPoint = _size.width / _increment - 1;
+    }
+
+    screen->drawTriangle(
+        _loc.x + _increment * previousPoint - 4,
+        _loc.y - 7,
+        _loc.x + _increment * previousPoint,
+        _loc.y - 3,
+        _loc.x + _increment * previousPoint + 4,
+        _loc.y - 7,
+        backgroundColor);
+
+    screen->drawTriangle(
+        _loc.x + _increment * _timepoint - 4,
+        _loc.y - 7,
+        _loc.x + _increment * _timepoint,
+        _loc.y - 3,
+        _loc.x + _increment * _timepoint + 4,
+        _loc.y - 7,
+        _color);
+}
+
+uint16_t RunningChart::scaleValue(float value)
+{
+    int pos = ((float)value - _dynamicRangeLow)*_size.height/(_dynamicRangeHigh - _dynamicRangeLow);
+    Sprintln(pos);
+    return pos;
+}
+
+void RunningChart::init()
+{
+    drawBorder();
+    _timepoint = 0;
+}
+
+void RunningChart::update()
+{
+    _value = _sensor->readDataPoint(_dataType, false);
+
+    if(_timepoint++ == (_size.width / _increment - 1))
+    {
+        _timepoint = 0;
+    }
+
+    uint16_t value = scaleValue(_value);
+
+    screen->fillRect(
+        _loc.x + _increment * _timepoint,
+        _loc.y + _size.height - value,
+        _increment,
+        value,
+        _color);
+
+    screen->fillRect(
+        _loc.x + _increment * _timepoint,
+        _loc.y,
+        _increment,
+        _size.height - value,
+        backgroundColor);
+
+    drawIndicator(value);
+}
+

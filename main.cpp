@@ -96,7 +96,7 @@ Label irLable = Label(
 #endif
 
 #ifdef USE_BME280
-SensorBME280 bme = SensorBME280(0x76, 500);
+SensorBME280 bme = SensorBME280(0x76, 250);
 // ProgressBar humidityPbar = ProgressBar(
 //     {widgetStart, 125},
 //     {widgetWidth, 12},
@@ -177,6 +177,15 @@ Label altitudeLable = Label(
     5,
     Label::DRAW_ON_BOTTOM,
     BME280_ALTITUDE);
+RunningChart humidityChart = RunningChart(
+    {10, 190},
+    {300, 45},
+    3,
+    foregroundColor,
+    &bme,
+    BME280_HUMIDITY,
+    100,
+    0);
 #endif
 
 #ifdef USE_BATTERY
@@ -232,6 +241,7 @@ void bmeGetData()
 }
 
 Ticker bmeEvent(bmeGetData, bme._reportInterval, 0);
+uint32_t bmeEventPreviousCounter = 0;
 #endif
 
 #ifdef USE_SI1132
@@ -293,6 +303,7 @@ void setup()
     temperatureLable.init();
     pressureLable.init();
     altitudeLable.init();
+    humidityChart.init();
     bmeEvent.start();
 #endif
 
@@ -330,6 +341,11 @@ void loop(void)
     temperatureLable.update();
     pressureLable.update();
     altitudeLable.update();
+    if(bmeEvent.counter() != bmeEventPreviousCounter)
+    {
+        humidityChart.update();
+        bmeEventPreviousCounter = bmeEvent.counter();
+    }
 #endif
 
 #ifdef USE_SI1132

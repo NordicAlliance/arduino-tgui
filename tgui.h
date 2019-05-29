@@ -256,15 +256,25 @@ class ProgressBar : public TguiElement
 class RunningChart : public TguiElement
 {
     private:
-        /* data */
-    public:
-};
+        uint16_t _timepoint;
+        uint16_t _increment;
+        uint16_t _dynamicRangeHigh;
+        uint16_t _dynamicRangeLow;
+        uint16_t scaleValue(float value);
+        void drawIndicator(uint16_t value);
 
-class FramedText : public TguiElement
-{
-    private:
-        /* data */
     public:
+        RunningChart(
+            Location loc,
+            Size size,
+            uint16_t increment,
+            uint16_t color,
+            Sensor *sensor,
+            uint8_t dataType,
+            uint16_t dynamicRangeHigh,
+            uint16_t dynamicRangeLow);
+        void init();
+        void update();
 };
 
 class Label : public TguiElement
