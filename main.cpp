@@ -12,7 +12,7 @@
 #include "tgui.h"
 
 
-#define USE_SI1132  1
+// #define USE_SI1132  1
 // #define USE_VL53L0X 1
 #define USE_BME280  1
 #define USE_BATTERY 1
@@ -47,6 +47,7 @@ Label tofLable = Label(
     "mm",
     5,
     2,
+    Label::ONLY_INTEGER,
     4,
     Label::DRAW_ON_RIGHT,
     VL53L0X_DISTANCE);
@@ -81,6 +82,17 @@ ProgressBar uvPbar = ProgressBar(
     &light,
     20,
     SI1132_UV);
+Label irLable = Label(
+    {10, 50},
+    foregroundColor,
+    &light,
+    "lux",
+    5,
+    2,
+    Label::ONLY_INTEGER,
+    6,
+    Label::DRAW_ON_BOTTOM,
+    SI1132_IR);
 #endif
 
 #ifdef USE_BME280
@@ -128,10 +140,10 @@ Label humidityLable = Label(
     "%",
     5,
     2,
-    3,
+    Label::HAS_DECIMAL,
+    4,
     Label::DRAW_ON_BOTTOM,
-    BME280_HUMIDITY,
-    0);
+    BME280_HUMIDITY);
 Label temperatureLable = Label(
     {20, 120},
     foregroundColor,
@@ -139,32 +151,32 @@ Label temperatureLable = Label(
     "c",
     5,
     2,
-    3,
+    Label::HAS_DECIMAL,
+    4,
     Label::DRAW_ON_BOTTOM,
-    BME280_TEMPERATURE,
-    0);
+    BME280_TEMPERATURE);
 Label pressureLable = Label(
-    {140, 50},
+    {160, 50},
     foregroundColor,
     &bme,
     "hPa",
     5,
     2,
+    Label::HAS_DECIMAL,
     5,
     Label::DRAW_ON_BOTTOM,
-    BME280_PRESSURE,
-    0);
+    BME280_PRESSURE);
 Label altitudeLable = Label(
-    {140, 120},
+    {160, 120},
     foregroundColor,
     &bme,
     "m",
     5,
     2,
+    Label::HAS_DECIMAL,
     5,
     Label::DRAW_ON_BOTTOM,
-    BME280_ALTITUDE,
-    0);
+    BME280_ALTITUDE);
 #endif
 
 #ifdef USE_BATTERY
@@ -185,6 +197,7 @@ Label batteryVoltageLable = Label(
     "mv",
     2,
     1,
+    Label::ONLY_INTEGER,
     4,
     Label::DRAW_ON_RIGHT,
     BATTERY_VOLTAGE);
@@ -283,11 +296,12 @@ void setup()
     bmeEvent.start();
 #endif
 
- #ifdef USE_SI1132
+#ifdef USE_SI1132
     light.init();
     lightPbar.init();
     irPbar.init();
     uvPbar.init();
+    irLable.init();
     lightEvent.start();
 #endif
 }
@@ -323,5 +337,6 @@ void loop(void)
     lightPbar.update();
     irPbar.update();
     uvPbar.update();
+    irLable.update();
 #endif
 }

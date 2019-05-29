@@ -270,12 +270,12 @@ class FramedText : public TguiElement
 class Label : public TguiElement
 {
 private:
-    uint8_t _dataType;
     const char *_unit;
     uint8_t _textSize;
     uint8_t _unitSize;
     bool _unitLocation;
-    uint8_t _nDigitsDisplay;
+    uint8_t _nDigitMax;
+    bool _onlyInteger;
 
 public:
     Label(
@@ -285,19 +285,26 @@ public:
         const char *unit,
         uint8_t textSize,
         uint8_t unitSize,
+        bool onlyInteger = ONLY_INTEGER,
         uint8_t nDigitMax = 4,
         bool unitLocation = DRAW_ON_RIGHT,
-        uint8_t dataType = 0,
-        uint8_t nDigitsDisplay = 0);
+        uint8_t dataType = 0);
     void init();
     void update();
     void drawUnit();
-    void drawDigits(float digits);
-    void drawPadding(int value);
+    void drawDigits(float value);
+    void drawDigits(int value);
+    void drawPadding(uint8_t nDigits);
 
     enum
     {
         DRAW_ON_BOTTOM,
         DRAW_ON_RIGHT
+    };
+
+    enum
+    {
+        HAS_DECIMAL = 0,
+        ONLY_INTEGER = 1
     };
 };

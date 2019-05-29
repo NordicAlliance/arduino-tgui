@@ -34,6 +34,19 @@ uint8_t countDigits(int num)
     return count;
 }
 
+uint8_t countFloatDigits(float num)
+{
+    uint8_t count = 0;
+    float threshold = 0.00005;
+    while (abs(num - round(num)) > threshold)
+    {
+        num *= 10.0;
+        threshold *= 10.0;
+        count++;
+    }
+    return count;
+}
+
 //------------------------- BME280 -------------------------------------/
 void SensorBME280::init()
 {
@@ -114,7 +127,7 @@ void SensorBME280::updatePressure()
 {
     // usually the pressure stays between 980 and 1030hpa
     // Record in Sweden shows the upper and lower bounds are 938.4 and 1063.7hpa
-    addDataPoint(BME280_PRESSURE, _phy.readPressure()-98000);
+    addDataPoint(BME280_PRESSURE, (_phy.readPressure()-98000.0)/1000.0);
 }
 
 void SensorBME280::updateAltitude()
@@ -402,24 +415,48 @@ Label::Label(
     const char *unit,
     uint8_t textSize,
     uint8_t unitSize,
+    bool onlyInteger,
     uint8_t nDigitMax,
     bool unitLocation,
-    uint8_t dataType,
-    uint8_t nDigitsDisplay)
+    uint8_t dataType)
 {
     _loc = loc;
     _color = color;
     _sensor = sensor;
+    _value = 0;
+    _dataType = dataType;
     screen = &tft,
     _unit = unit;
-    _value = 0;
     _textSize = textSize;
     _unitSize = unitSize;
+    _nDigitMax = nDigitMax;
     _size.height = (unitLocation == DRAW_ON_BOTTOM) ? textPixelH(textSize) + textPixelH(unitSize) : textPixelH(textSize);
     _size.width = (unitLocation == DRAW_ON_BOTTOM) ? textPixelW(textSize) * nDigitMax : textPixelW(textSize) * nDigitMax + textPixelH(unitSize) * strlen(unit);
     _unitLocation = unitLocation;
-    _dataType = dataType;
-    _nDigitsDisplay = nDigitsDisplay;
+    _onlyInteger = onlyInteger;
+}
+
+void Label::drawDigits(int value)
+{
+    screen->setTextSize(_textSize);
+    screen->setTextColor(_color, backgroundColor);
+    screen->setCursor(_loc.x, _loc.y);
+
+    uint8_t nDigits = countDigits(value);
+
+    if(nDigits <= _nDigitMax)
+    {
+        screen->print(value);
+        if(nDigits != _nDigitMax)
+        {
+            drawPadding(nDigits);
+        }
+    }
+    else
+    {
+        screen->print("-");
+        drawPadding(1);
+    }
 }
 
 void Label::drawDigits(float value)
@@ -428,15 +465,15 @@ void Label::drawDigits(float value)
     screen->setTextColor(_color, backgroundColor);
     screen->setCursor(_loc.x, _loc.y);
 
-    if ((countDigits((int)value) * textPixelW(_textSize)) < _size.width)
+    uint8_t nInteger = countDigits((int)value);
+
+    if((value == (int)value) || (nInteger + 2 > _nDigitMax))
     {
-        screen->print(value, _nDigitsDisplay);
-        drawPadding((int)value);
+        drawDigits((int)value);
     }
     else
     {
-        screen->print("-");
-        drawPadding(9);
+        screen->print(value, _nDigitMax - 1 - nInteger);
     }
 }
 
@@ -456,10 +493,10 @@ void Label::drawUnit()
     screen->print(_unit);
 }
 
-void Label::drawPadding(int value)
+void Label::drawPadding(uint8_t nDigits)
 {
     const uint16_t textWidth = textPixelW(_textSize);
-    int16_t paddingLength = _size.width - countDigits(value) * textWidth;
+    int16_t paddingLength = _size.width - nDigits * textWidth;
     if (_unitLocation == DRAW_ON_RIGHT)
     {
         paddingLength -= strlen(_unit) * textPixelW(_unitSize);
@@ -468,7 +505,7 @@ void Label::drawPadding(int value)
     if (paddingLength >= (int)textWidth)
     {
         screen->setTextSize(_textSize);
-        screen->setCursor(_loc.x + countDigits(value) * textWidth, _loc.y);
+        screen->setCursor(_loc.x + nDigits * textWidth, _loc.y);
         for (uint8_t i = 0; i < (paddingLength / textWidth); i++)
         {
             screen->print(" ");
@@ -489,11 +526,14 @@ void Label::update()
     if (value == _value)
         return;
 
-    drawDigits(value);
-    if (countDigits((int)value) != countDigits((int)_value))
-    {
-        drawPadding((int)value);
-    }
-
     _value = value;
+
+    if(_onlyInteger == true)
+    {
+        drawDigits((int)value);
+    }
+    else
+    {
+        drawDigits(value);
+    }
 }
