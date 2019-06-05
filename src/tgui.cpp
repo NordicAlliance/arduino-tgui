@@ -1,7 +1,7 @@
 /*!
  * @file tgui.cpp
  *
- * Written by Wyng AB Sweden, visit us http://www.wyngstudio.com
+ * Written by Wyng AB Sweden, visit us http://www.nordicalliance.com
  *
  * Apache license.
  *
@@ -306,6 +306,110 @@ void SensorBattery::updateLevel()
     addDataPoint(BATTERY_LEVEL, _phy.level() + 24); // so that 75%-100% is shown as full power
 }
 
+//------------------------ Zforce touch ---------------------------------------/
+void Touch::init()
+{
+    _phy.Start(DATA_READY);
+
+    Message *msg = _phy.GetMessage();
+    if (msg != NULL)
+    {
+        // Sprintln(F("zForce touch sensor detected"));
+    }
+    _phy.DestroyMessage(msg);
+    
+    _phy.ReverseX(true); // Send and read ReverseX
+    do
+    {
+        msg = _phy.GetMessage();
+    } while (msg == NULL);
+
+    if (msg->type == MessageType::REVERSEXTYPE)
+    {
+        // Sprintln(F("zForce touch sensor reverse X axis"));
+    }
+    _phy.DestroyMessage(msg);
+
+    uint8_t changeFreq[] = {0xEE, 0x0B, 0xEE, 0x09, 0x40, 0x02, 0x02, 0x00, 0x68, 0x03, 0x80, 0x01, 0x32};
+    _phy.Write(changeFreq);
+    do
+    {
+        msg = _phy.GetMessage();
+    } while (msg == NULL);
+    _phy.DestroyMessage(msg);
+    // Sprintln(F("Changed frequency"));
+
+    _phy.Enable(true);  // Send and read Enable
+    do
+    {
+        msg = _phy.GetMessage();
+    } while (msg == NULL);
+
+    if (msg->type == MessageType::ENABLETYPE)
+    {
+        Sprintln(F("zForce touch sensor is ready"));
+    }
+    _phy.DestroyMessage(msg);
+}
+
+void Touch::addDataPoint(uint8_t channel, float data)
+{
+    Message* touch = _phy.GetMessage();
+    if(touch != NULL)
+    {
+        if(touch->type == MessageType::TOUCHTYPE)
+        {
+            _touch.loc.x = ((TouchMessage*)touch)->touchData[0].x;
+            _touch.loc.y = ((TouchMessage*)touch)->touchData[0].y;
+            _touch.state = ((TouchMessage*)touch)->touchData[0].event;
+            // Serial.print("X/Y/Event: ");
+            // Sprint(_touch.x);
+            // Serial.print(" / ");
+            // Sprint(_touch.y);
+            // Serial.print(" / ");
+            // Sprintln(_touch.state);
+        }
+    }
+    _phy.DestroyMessage(touch);
+}
+
+float Touch::readDataPoint(uint8_t channel = 0, bool getRawData = false)
+{
+    switch (channel)
+    {
+    case ZFORCE_X:
+        return _touch.loc.x;
+    case ZFORCE_Y:
+        return _touch.loc.y;
+
+    default:
+        return _touch.state;
+    }
+}
+
+TouchPoint * Touch::getLatestTouch(void)
+{
+    return &_touch;
+}
+
+uint16_t Touch::getParameters(uint16_t input)
+{
+    switch (_touch.state)
+    {
+    case DOWN:
+        return 0;
+    case MOVE:
+        return 0;
+    default:
+        return 1;
+    }
+}
+
+void Touch::updateTouch()
+{
+    addDataPoint(ZFORCE_TOUCH, 0);
+}
+
 //------------------------ Tgui Element ---------------------------------------/
 void TguiElement::drawBorder()
 {
@@ -323,7 +427,7 @@ ProgressBar::ProgressBar(
     Location loc,
     Size size,
     Size block,
-    uint16_t increment,
+    uint16_t resolution,
     uint16_t color,
     Sensor *sensor,
     uint16_t ratio,
@@ -332,7 +436,7 @@ ProgressBar::ProgressBar(
     _loc = loc;
     _size = size;
     _block = block;
-    _increment = increment;
+    _resolution = resolution;
     _color = color;
     _sensor = sensor;
     _dataType = dataType;
@@ -352,7 +456,7 @@ void ProgressBar::init()
 
 void ProgressBar::drawBlocks(uint8_t previousProgress, uint8_t progress)
 {
-    const uint8_t totalBlocks = _size.width / _increment;
+    const uint8_t totalBlocks = _size.width / _resolution;
 
     const uint8_t before = totalBlocks * previousProgress / 100;
     const uint8_t after = totalBlocks * progress / 100;
@@ -364,7 +468,7 @@ void ProgressBar::drawBlocks(uint8_t previousProgress, uint8_t progress)
         for (uint8_t i = before; i < after; i++)
         {
             screen->fillRect(
-                _loc.x + _increment * i,
+                _loc.x + _resolution * i,
                 _loc.y,
                 _block.width,
                 _block.height,
@@ -376,7 +480,7 @@ void ProgressBar::drawBlocks(uint8_t previousProgress, uint8_t progress)
         for (uint8_t i = after; i < before; i++)
         {
             screen->fillRect(
-                _loc.x + _increment * i,
+                _loc.x + _resolution * i,
                 _loc.y,
                 _block.width,
                 _block.height,
@@ -542,7 +646,7 @@ void Label::update()
 RunningChart::RunningChart(
             Location loc,
             Size size,
-            uint16_t increment,
+            uint16_t resolution,
             uint16_t color,
             Sensor *sensor,
             uint8_t dataType,
@@ -551,7 +655,7 @@ RunningChart::RunningChart(
 {
     _loc = loc;
     _size = size;
-    _increment = increment;
+    _resolution = resolution;
     _color = color;
     _sensor = sensor;
     _dataType = dataType;
@@ -562,35 +666,29 @@ RunningChart::RunningChart(
     _timepoint = 0;
 }
 
-void RunningChart::drawIndicator(uint16_t value)
+void RunningChart::drawIndicator()
 {
-    // uint16_t x0 = _loc.x <= (_increment * _timepoint - 2) ? (_loc.x + _increment * _timepoint - 2) : 0;
-    // x0 = (_loc.x + _increment * _timepoint - 2) <= (_loc.x + _size.width) ? x0 : (_loc.x + _size.width);
-
-    // uint16_t x2 = _loc.x <= (_increment * _timepoint - 2) ? (_loc.x + _increment * _timepoint - 2) : 0;
-    // x2 = (_loc.x + _increment * _timepoint - 2) <= (_loc.x + _size.width) ? x2 : (_loc.x + _size.width);
-
     uint16_t previousPoint = _timepoint - 1;
     if(_timepoint == 0)
     {
-        previousPoint = _size.width / _increment - 1;
+        previousPoint = _size.width / _resolution - 1;
     }
 
     screen->drawTriangle(
-        _loc.x + _increment * previousPoint - 4,
+        _loc.x + _resolution * previousPoint - 4,
         _loc.y - 7,
-        _loc.x + _increment * previousPoint,
+        _loc.x + _resolution * previousPoint,
         _loc.y - 3,
-        _loc.x + _increment * previousPoint + 4,
+        _loc.x + _resolution * previousPoint + 4,
         _loc.y - 7,
         backgroundColor);
 
     screen->drawTriangle(
-        _loc.x + _increment * _timepoint - 4,
+        _loc.x + _resolution * _timepoint - 4,
         _loc.y - 7,
-        _loc.x + _increment * _timepoint,
+        _loc.x + _resolution * _timepoint,
         _loc.y - 3,
-        _loc.x + _increment * _timepoint + 4,
+        _loc.x + _resolution * _timepoint + 4,
         _loc.y - 7,
         _color);
 }
@@ -598,7 +696,7 @@ void RunningChart::drawIndicator(uint16_t value)
 uint16_t RunningChart::scaleValue(float value)
 {
     int pos = ((float)value - _dynamicRangeLow)*_size.height/(_dynamicRangeHigh - _dynamicRangeLow);
-    Sprintln(pos);
+
     return pos;
 }
 
@@ -612,7 +710,7 @@ void RunningChart::update()
 {
     _value = _sensor->readDataPoint(_dataType, false);
 
-    if(_timepoint++ == (_size.width / _increment - 1))
+    if(_timepoint++ == (_size.width / _resolution - 1))
     {
         _timepoint = 0;
     }
@@ -620,19 +718,139 @@ void RunningChart::update()
     uint16_t value = scaleValue(_value);
 
     screen->fillRect(
-        _loc.x + _increment * _timepoint,
+        _loc.x + _resolution * _timepoint,
         _loc.y + _size.height - value,
-        _increment,
+        _resolution,
         value,
         _color);
 
     screen->fillRect(
-        _loc.x + _increment * _timepoint,
+        _loc.x + _resolution * _timepoint,
         _loc.y,
-        _increment,
+        _resolution,
         _size.height - value,
         backgroundColor);
 
-    drawIndicator(value);
+    drawIndicator();
 }
 
+//------------------------ XY Plot ---------------------------------------/
+XyPlot::XyPlot(
+            Location loc,
+            Size size,
+            uint16_t resolution,
+            uint16_t color,
+            Sensor *sensor,
+            uint8_t dataTypeX,
+            Range rangeX,
+            uint8_t dataTypeY,
+            Range rangeY,
+            bool keepTrail)
+{
+    _loc = loc;
+    _size = size;
+    _resolution = resolution;
+    _color = color;
+    _sensor = sensor;
+    _dataTypeX = dataTypeX;
+    _dataTypeY = dataTypeY;
+    _rangeX = rangeX;
+    _rangeY = rangeY;
+    screen = &tft,
+    _value = 0;
+    _previousLoc = {0, 0};
+    _redraw = true;
+    _keepTrail = keepTrail;
+}
+
+void XyPlot::drawIndicator(Location* now, Location* before, bool drawNow, bool keepTrail)
+{
+    if(!keepTrail)
+    {
+        screen->fillCircle(
+            _loc.x + before->x,
+            _loc.y + before->y,
+            10,
+            backgroundColor);
+    }
+
+    if(drawNow == true)
+    {
+        screen->fillCircle(
+            _loc.x + now->x,
+            _loc.y + now->y,
+            10,
+            _color);
+    }
+}
+
+uint16_t XyPlot::scaleValue(float value, bool axis)
+{
+    Range *range = (axis == AXIS_X) ? &_rangeX : &_rangeY;
+    uint16_t* base = (axis == AXIS_X) ? &_size.width : &_size.height;
+    return (((float)value - range->low)*(*base)/(range->high - range->low));
+}
+
+void XyPlot::init()
+{
+    drawBorder();
+}
+
+#define diff(x, y) (x > y ? (x - y) : (y - x))
+
+bool XyPlot::matchLocation(Location *a, Location *b)
+{
+    uint8_t threshold = _keepTrail ? 1 : 3;
+    if((diff(a->x,b->x) + diff(a->y, b->y)) < threshold)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+void XyPlot::update()
+{
+    Location nowLoc;
+    nowLoc.x = scaleValue(_sensor->readDataPoint(_dataTypeX, false), AXIS_X);
+    nowLoc.y = scaleValue(_sensor->readDataPoint(_dataTypeY, false), AXIS_Y);
+
+    uint8_t state = SAME_LOCATION;
+    if(_sensor->getParameters(state))
+    {
+        if(_redraw)
+        {
+            state = NO_LOCATION;
+            _redraw = false;
+        }
+    }
+    else if(!matchLocation(&nowLoc, &_previousLoc))
+    {
+        state = NEW_LOCATION;
+        _redraw = true;
+    }
+
+    Sprintln(state);
+
+    switch (state)
+    {
+    case NEW_LOCATION:
+        drawIndicator(&nowLoc, &_previousLoc, true, _keepTrail);
+        _previousLoc = nowLoc;
+        break;
+    case NO_LOCATION:
+        if(!_keepTrail)
+        {
+            drawIndicator(&nowLoc, &_previousLoc, false);
+        }
+        else
+        {
+            screen->fillRoundRect(_loc.x-1, _loc.y-1, _size.width+2, _size.height+2,5,backgroundColor);
+        }
+        
+    default:
+        break;
+    }
+}

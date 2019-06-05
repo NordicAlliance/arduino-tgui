@@ -1,7 +1,7 @@
 /*!
  * @file main.cpp
  *
- * Written by Wyng AB Sweden, visit us http://www.wyngstudio.com
+ * Written by Wyng AB Sweden, visit us http://www.nordicalliance.com
  *
  * Apache license.
  *
@@ -16,6 +16,7 @@
 // #define USE_VL53L0X 1
 #define USE_BME280  1
 #define USE_BATTERY 1
+// #define USE_ZFORCE 1
 
 const uint8_t backlightPin = 5;
 uint8_t backlightPwm = 255;
@@ -31,6 +32,12 @@ struct sensorList
 
 #ifdef USE_VL53L0X
 SensorVL53L0X tof = SensorVL53L0X(0x67, 100);
+void tofGetData()
+{
+    tof.updateData();
+}
+Ticker tofEvent(tofGetData, tof._reportInterval, 0);
+
 ProgressBar tofPbar = ProgressBar(
     {10, 220},
     {300, 12},
@@ -55,6 +62,14 @@ Label tofLable = Label(
 
 #ifdef USE_SI1132
 SensorSi1132 light = SensorSi1132(0x60, 100);
+void ligthGetData()
+{
+    light.updateIR();
+    light.updateUV();
+    light.updateVisible();
+}
+Ticker lightEvent(ligthGetData, light._reportInterval, 0);
+
 ProgressBar lightPbar = ProgressBar(
     {10, 190},
     {300, 8},
@@ -97,6 +112,15 @@ Label irLable = Label(
 
 #ifdef USE_BME280
 SensorBME280 bme = SensorBME280(0x76, 250);
+void bmeGetData()
+{
+    bme.updateHumidity();
+    bme.updateTemperature();
+    bme.updatePressure();
+    bme.updateAltitude();
+}
+Ticker bmeEvent(bmeGetData, bme._reportInterval, 0);
+
 // ProgressBar humidityPbar = ProgressBar(
 //     {widgetStart, 125},
 //     {widgetWidth, 12},
@@ -177,6 +201,8 @@ Label altitudeLable = Label(
     5,
     Label::DRAW_ON_BOTTOM,
     BME280_ALTITUDE);
+
+uint32_t bmeEventPreviousCounter = 0;
 RunningChart humidityChart = RunningChart(
     {10, 190},
     {300, 45},
@@ -190,6 +216,13 @@ RunningChart humidityChart = RunningChart(
 
 #ifdef USE_BATTERY
 SensorBattery battery = SensorBattery(1000);
+void batteryGetData()
+{
+    battery.updateLevel();
+    battery.updateVoltage();
+}
+Ticker batteryEvent(batteryGetData, battery._reportInterval, 0);
+
 ProgressBar batteryPbar = ProgressBar(
     {278, 10},
     {32, 10},
@@ -212,47 +245,55 @@ Label batteryVoltageLable = Label(
     BATTERY_VOLTAGE);
 #endif
 
-#ifdef USE_VL53L0X
-void tofGetData()
+#ifdef USE_ZFORCE
+Touch air = Touch(15);
+void airGetData()
 {
-    tof.updateData();
+    air.updateTouch();
 }
+Ticker airEvent(airGetData, air._reportInterval, 0);
 
-Ticker tofEvent(tofGetData, tof._reportInterval, 0);
-#endif
-
-#ifdef USE_BATTERY
-void batteryGetData()
+Label airX = Label(
+    {10, 10},
+    foregroundColor,
+    &air,
+    "mm",
+    2,
+    1,
+    Label::ONLY_INTEGER,
+    4,
+    Label::DRAW_ON_RIGHT,
+    ZFORCE_X);
+Label airY = Label(
+    {100, 10},
+    foregroundColor,
+    &air,
+    "mm",
+    2,
+    1,
+    Label::ONLY_INTEGER,
+    4,
+    Label::DRAW_ON_RIGHT,
+    ZFORCE_Y);
+void airLabelUpdate()
 {
-    battery.updateLevel();
-    battery.updateVoltage();
+    airX.update();
+    airY.update();
 }
+Ticker airLabelEvent(airLabelUpdate, 500, 0);
 
-Ticker batterEvent(batteryGetData, battery._reportInterval, 0);
-#endif
-
-#ifdef USE_BME280
-void bmeGetData()
-{
-    bme.updateHumidity();
-    bme.updateTemperature();
-    bme.updatePressure();
-    bme.updateAltitude();
-}
-
-Ticker bmeEvent(bmeGetData, bme._reportInterval, 0);
-uint32_t bmeEventPreviousCounter = 0;
-#endif
-
-#ifdef USE_SI1132
-void ligthGetData()
-{
-    light.updateIR();
-    light.updateUV();
-    light.updateVisible();
-}
-
-Ticker lightEvent(ligthGetData, light._reportInterval, 0);
+uint32_t airEventPreviousCounter = 0;
+XyPlot airPlot = XyPlot(
+    {10, 40},
+    {300, 190},
+    1,
+    foregroundColor,
+    &air,
+    ZFORCE_X,
+    {0, 1200},
+    ZFORCE_Y,
+    {0, 1200},
+    true);
 #endif
 
 void initPins()
@@ -271,19 +312,19 @@ void initPins()
 
 void setup()
 {
-    // initialize the digital pins
     initPins();
     analogReference(INTERNAL);
     Serial.begin(115200);
-    Sprintln(F("TGUI showcase"));
-    Wire.begin();
+    Sprintln(F("Tgui showcase"));
+
+    Wire.begin();    // Zforce lib uses a different I2C lib
     InitializeScreen();
 
 #ifdef USE_BATTERY
     battery.init();
     batteryPbar.init();
     batteryVoltageLable.init();
-    batterEvent.start();
+    batteryEvent.start();
 #endif
 
 #ifdef USE_VL53L0X
@@ -315,12 +356,21 @@ void setup()
     irLable.init();
     lightEvent.start();
 #endif
+
+#ifdef USE_ZFORCE
+    airX.init();
+    airY.init();
+    airPlot.init();
+    air.init();
+    airEvent.start();
+    airLabelEvent.start();
+#endif
 }
 
 void loop(void)
 {
 #ifdef USE_BATTERY
-    batterEvent.update();
+    batteryEvent.update();
     batteryPbar.update();
     batteryVoltageLable.update();
 #endif
@@ -354,5 +404,15 @@ void loop(void)
     irPbar.update();
     uvPbar.update();
     irLable.update();
+#endif
+
+#ifdef USE_ZFORCE
+    airEvent.update();
+    airLabelEvent.update();
+    if(airEvent.counter() != airEventPreviousCounter)
+    {
+        airPlot.update();
+        airEventPreviousCounter = airEvent.counter();
+    }
 #endif
 }

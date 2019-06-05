@@ -1,7 +1,7 @@
 /*!
  * @file tgui.h
  *
- * Written by Wyng AB Sweden, visit us http://www.wyngstudio.com
+ * Written by Wyng AB Sweden, visit us http://www.nordicalliance.com
  *
  * Apache license.
  *
@@ -24,6 +24,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <ODROID_Si1132.h>
+#include <Zforce.h>
 
 #define DEBUG
 #ifdef DEBUG
@@ -52,7 +53,10 @@
 #define widgetStart (pbar_text_width + screenPadding)
 #define widgetWidth (screenWidth - widgetStart - screenPadding)
 #define FILTER_SAMPLE_SIZE 7
+
+/* Sensor specific parameters */
 #define SEALEVELPRESSURE_HPA (1013.25)
+#define DATA_READY 17   //PD2(INT0) on Odroid
 
 /* REGISTERS */
 #define _cs 10
@@ -85,6 +89,14 @@ enum
     SI1132_UV,
 };
 
+enum
+{
+    ZFORCE_TOUCH,
+    ZFORCE_X,
+    ZFORCE_Y,
+    ZFORCE_STATUS,
+};
+
 typedef struct Location
 {
     uint16_t x;
@@ -97,20 +109,27 @@ typedef struct Size
     uint16_t height;
 } Size;
 
+typedef struct Range
+{
+    uint16_t low;
+    uint16_t high;
+} Range;
+
 void InitializeScreen();
 
 class Sensor
 {
     protected:
         uint8_t _filterSize;
+        virtual void addDataPoint(uint8_t channel, float data){};
 
     public:
         Sensor(){};
         ~Sensor(){};
-        virtual void addDataPoint(uint8_t channel, float data){};
-        virtual float readDataPoint(uint8_t channel, bool getRawData) { return 0; };
         virtual void init(){};
         uint16_t _reportInterval;
+        virtual float readDataPoint(uint8_t channel, bool getRawData) { return 0; };
+        virtual uint16_t getParameters(uint16_t input) { return input; };
 };
 
 class SensorBME280 : public Sensor
@@ -122,6 +141,7 @@ private:
     RunningMedian _filterHumidity = RunningMedian(FILTER_SAMPLE_SIZE);
     RunningMedian _filterTemperature = RunningMedian(FILTER_SAMPLE_SIZE);
     RunningMedian _filterAltitude = RunningMedian(FILTER_SAMPLE_SIZE);
+    void addDataPoint(uint8_t channel, float data);
 
 public:
     SensorBME280(
@@ -133,7 +153,6 @@ public:
         _filterSize = _filter.getSize() / 2 + 1;
     }
     void init();
-    void addDataPoint(uint8_t channel, float data);
     float readDataPoint(uint8_t channel, bool getRawData);
     void updateTemperature();
     void updateHumidity();
@@ -147,6 +166,7 @@ private:
     uint16_t _address;
     VL53L0X _phy;
     RunningMedian _filter = RunningMedian(FILTER_SAMPLE_SIZE);
+    void addDataPoint(uint8_t channel, float data);
 
 public:
     SensorVL53L0X(
@@ -158,7 +178,6 @@ public:
         _filterSize = _filter.getSize() / 2 + 1;
     }
     void init();
-    void addDataPoint(uint8_t channel, float data);
     float readDataPoint(uint8_t channel, bool getRawData);
     void updateData();
 };
@@ -171,6 +190,7 @@ private:
     RunningMedian _filterIR = RunningMedian(FILTER_SAMPLE_SIZE);
     RunningMedian _filter = RunningMedian(FILTER_SAMPLE_SIZE);
     RunningMedian _filterUV = RunningMedian(FILTER_SAMPLE_SIZE);
+    void addDataPoint(uint8_t channel, float data);
 
 public:
     SensorSi1132(
@@ -182,7 +202,6 @@ public:
         _filterSize = _filter.getSize() / 2 + 1;
     }
     void init();
-    void addDataPoint(uint8_t channel, float data);
     float readDataPoint(uint8_t channel, bool getRawData);
     void updateIR();
     void updateVisible();
@@ -195,6 +214,7 @@ private:
     Battery _phy = Battery(3400, 4200, A2);
     uint8_t _level;
     uint16_t _voltage;
+    void addDataPoint(uint8_t channel, float data);
 
 public:
     SensorBattery(
@@ -204,10 +224,39 @@ public:
         _filterSize = 1;
     }
     void init();
-    void addDataPoint(uint8_t channel, float data);
     float readDataPoint(uint8_t channel, bool getRawData);
     void updateLevel();
     void updateVoltage();
+};
+
+typedef struct TouchPoint
+{
+    Location loc;
+    uint8_t state;
+} TouchPoint;
+
+class Touch : public Sensor
+{
+private:
+    Zforce _phy = Zforce();
+    TouchPoint _touch;
+    void addDataPoint(uint8_t channel, float data);
+
+public:
+    Touch(
+        uint16_t reportInterval = 100)
+    {
+        _reportInterval = reportInterval;
+        _filterSize = 1;
+        _touch.loc.x = 0;
+        _touch.loc.y = 0;
+        _touch.state = 3;
+    }
+    void init();
+    float readDataPoint(uint8_t channel, bool getRawData);
+    void updateTouch();
+    TouchPoint * getLatestTouch();
+    uint16_t getParameters(uint16_t input);
 };
 
 class TguiElement
@@ -219,6 +268,7 @@ class TguiElement
         uint16_t _color;
         float _value;
         uint8_t _dataType;
+        bool _showBorder;
 
     public:
         TguiElement(){};
@@ -236,14 +286,14 @@ class ProgressBar : public TguiElement
         uint8_t _progress;
         uint16_t _dataScaleRatio;
         Size _block;
-        uint16_t _increment;
+        uint16_t _resolution;
 
     public:
         ProgressBar(
             Location loc,
             Size size,
             Size block,
-            uint16_t increment,
+            uint16_t resolution,
             uint16_t color,
             Sensor *sensor,
             uint16_t ratio,
@@ -257,17 +307,17 @@ class RunningChart : public TguiElement
 {
     private:
         uint16_t _timepoint;
-        uint16_t _increment;
+        uint16_t _resolution;
         uint16_t _dynamicRangeHigh;
         uint16_t _dynamicRangeLow;
         uint16_t scaleValue(float value);
-        void drawIndicator(uint16_t value);
+        void drawIndicator();
 
     public:
         RunningChart(
             Location loc,
             Size size,
-            uint16_t increment,
+            uint16_t resolution,
             uint16_t color,
             Sensor *sensor,
             uint8_t dataType,
@@ -316,5 +366,49 @@ public:
     {
         HAS_DECIMAL = 0,
         ONLY_INTEGER = 1
+    };
+};
+
+class XyPlot : public TguiElement
+{
+    private:
+        uint16_t _resolution;
+        Range _rangeX;
+        Range _rangeY;
+        uint8_t _dataTypeX;
+        uint8_t _dataTypeY;
+        Location _previousLoc;
+        bool _redraw;
+        bool _keepTrail;
+        uint16_t scaleValue(float value, bool axis);
+        void drawIndicator(Location* now, Location* before, bool drawNow, bool keepTrail = false);
+        bool matchLocation(Location *a, Location *b);
+
+    public:
+        XyPlot(
+            Location loc,
+            Size size,
+            uint16_t resolution,
+            uint16_t color,
+            Sensor *sensor,
+            uint8_t dataTypeX,
+            Range rangeX,
+            uint8_t dataTypeY,
+            Range rangeY,
+            bool keepTrail = false);
+        void init();
+        void update();
+
+    enum
+    {
+        AXIS_X = 0,
+        AXIS_Y = 1
+    };
+
+    enum
+    {
+        NO_LOCATION = 0,
+        NEW_LOCATION = 1,
+        SAME_LOCATION = 2
     };
 };
