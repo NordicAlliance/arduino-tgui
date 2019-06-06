@@ -1,7 +1,7 @@
 /*!
  * @file main.cpp
  *
- * Written by Wyng AB Sweden, visit us http://www.nordicalliance.com
+ * Written by Wyng AB Sweden, visit us http://www.nordicalliance.eu
  *
  * Apache license.
  *
