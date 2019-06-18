@@ -19,6 +19,22 @@ const uint8_t backlightPin = 5;
 uint8_t backlightPwm = 255;
 Adafruit_ILI9340 tft = Adafruit_ILI9340(10, 9, 8);
 
+uint8_t countDigits(int num)
+{
+    uint8_t count = 0;
+    if (num < 0)
+    {
+        count++;
+        num = -num;
+    }
+    while (num)
+    {
+        num = num / 10;
+        count++;
+    }
+    return count;
+}
+
 class Indicator : public TguiElement
 {
 private:
@@ -26,7 +42,7 @@ private:
     float _value2;
     void _drawBorder()
     {
-        screen->drawCircle(_loc.x + _size.width/2, _loc.y + _size.height/2, _size.width/2, foregroundColor);
+        screen->fillCircle(_loc.x + _size.width / 2, _loc.y + _size.height / 2, _size.width / 2, foregroundColor);
     }
 
 public:
@@ -35,39 +51,41 @@ public:
         Sensor *sensor,
         uint8_t dataTypeUpper,
         uint8_t dataTypeLower)
-        {
-            _loc = loc;
-            _size = {110, 110};
-            _color = foregroundColor;
-            _sensor = sensor;
-            screen = &tft;
-            _dataType = dataTypeUpper;
-            _dataType2 = dataTypeLower;
-            _value = 0;
-        }
+    {
+        _loc = loc;
+        _size = {110, 110};
+        _color = foregroundColor;
+        _sensor = sensor;
+        screen = &tft;
+        _dataType = dataTypeUpper;
+        _dataType2 = dataTypeLower;
+        _value = 0;
+    }
     void init()
     {
         _drawBorder();
         screen->setTextSize(3);
-        screen->setTextColor(_color, backgroundColor);
+        screen->setTextColor(backgroundColor, _color);
     }
     void update()
     {
-        float value = _sensor->readDataPoint(_dataType, false);
+        float value = _sensor->readDataPoint(_dataType);
 
         if (value != _value)
         {
             _value = value;
-            screen->setCursor(_loc.x + 20, _loc.y + 30);
+            uint8_t n = countDigits((int)value);
+            screen->setCursor(_loc.x + _size.width / 2 - n * 9, _loc.y + _size.height / 4);
             screen->println((int)value);
         }
 
-        float value2 = _sensor->readDataPoint(_dataType2, false);
+        float value2 = _sensor->readDataPoint(_dataType2);
 
         if (value2 != _value2)
         {
             _value2 = value2;
-            screen->setCursor(_loc.x + 30, _loc.y + 65);
+            uint8_t n = countDigits((int)value2);
+            screen->setCursor(_loc.x + _size.width / 2 - n * 9, _loc.y + _size.height / 2 + 10);
             screen->println((int)value2);
         }
     }
@@ -76,7 +94,7 @@ public:
 SensorBattery battery = SensorBattery(1000);
 void batteryGetData()
 {
-    battery.updateLevel();
+    battery.updateLevel(0);
     battery.updateVoltage();
 }
 Ticker batteryEvent(batteryGetData, battery._reportInterval, 0);

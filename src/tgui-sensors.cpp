@@ -46,7 +46,7 @@ void SensorBME280::addDataPoint(uint8_t channel, float data)
     filter->add(data);
 }
 
-float SensorBME280::readDataPoint(uint8_t channel, bool getRawData)
+float SensorBME280::readDataPoint(uint8_t channel = 0, bool getRawData = false)
 {
     RunningMedian *filter;
     switch (channel)
@@ -181,7 +181,7 @@ void SensorSi1132::addDataPoint(uint8_t channel, float data)
     filter->add(data);
 }
 
-float SensorSi1132::readDataPoint(uint8_t channel, bool getRawData)
+float SensorSi1132::readDataPoint(uint8_t channel = 0, bool getRawData = false)
 {
     RunningMedian *filter;
     switch (channel)
@@ -267,9 +267,9 @@ void SensorBattery::updateVoltage()
     addDataPoint(BATTERY_VOLTAGE, _phy.voltage());
 }
 
-void SensorBattery::updateLevel()
+void SensorBattery::updateLevel(uint8_t adjustment)
 {
-    addDataPoint(BATTERY_LEVEL, _phy.level() + 24); // so that 75%-100% is shown as full power
+    addDataPoint(BATTERY_LEVEL, _phy.level() + adjustment); // add 24 so that 75%-100% is shown as full power
 }
 
 //------------------------ Zforce touch ---------------------------------------/

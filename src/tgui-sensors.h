@@ -149,7 +149,7 @@ public:
     }
     void init();
     float readDataPoint(uint8_t channel, bool getRawData);
-    void updateLevel();
+    void updateLevel(uint8_t adjustment = 24);
     void updateVoltage();
 };
 

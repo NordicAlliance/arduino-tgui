@@ -1,0 +1,37 @@
+{
+    "name": "Tgui Sensor GUI Library", 
+    "version": "1.0.0", 
+    "keywords": [
+        "display",
+        "sensor",
+        "gui"
+    ], 
+    "description": "Tgui is a lightweight GUI for Arduino Uno type of MCU with small TFT screen, primarily for showing sensor data.", 
+    "frameworks": [
+        "arduino"
+    ], 
+    "platforms": [
+        "*"
+    ], 
+    "authors": [
+        {
+            "email": "hi@nordicalliance.eu", 
+            "url": null, 
+            "maintainer": true, 
+            "name": "Nordic Alliance"
+        }
+    ], 
+    "repository": {
+        "type": "git", 
+        "url": "https://github.com/NordicAlliance/arduino-tgui"
+    },
+    "license": "Apache-2.0",
+    "dependencies": [
+        {
+            "name": "Adafruit GFX Library"
+        }
+    ],
+    "examples": [
+        "examples/*.cpp"
+    ]
+}

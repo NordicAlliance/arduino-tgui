@@ -61,6 +61,6 @@ public:
     ~Sensor(){};
     virtual void init(){};
     uint16_t _reportInterval;
-    virtual float readDataPoint(uint8_t channel, bool getRawData) { return 0; };
+    virtual float readDataPoint(uint8_t channel = 0, bool getRawData = false) { return 0; };
     virtual uint16_t getParameters(uint16_t input) { return input; };
 };
