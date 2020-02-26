@@ -358,9 +358,9 @@ void RunningChart::drawIndicator()
 uint16_t RunningChart::scaleValue(float value)
 {
     if(value >= _dynamicRangeHigh)
-        return _dynamicRangeHigh;
+        value = _dynamicRangeHigh;
     if(value <= _dynamicRangeLow)
-        return _dynamicRangeLow;
+        value = _dynamicRangeLow;
 
     int pos = ((float)value - _dynamicRangeLow) * _size.height / 
                 (_dynamicRangeHigh - _dynamicRangeLow);
