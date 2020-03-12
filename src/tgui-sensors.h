@@ -8,18 +8,20 @@
  */
 
 #include <tgui-common.h>
-
 #include "RunningMedian.h"
-#include <Battery.h>
-#include <VL53L0X.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BME280.h>
-#include <ODROID_Si1132.h>
-#include <Zforce.h>
+
+// #define USE_SI1132
+// #define USE_VL53L0X
+// #define USE_BME280
+#define USE_BATTERY
+// #define USE_ZFORCE
 
 /* Parameters */
 #define FILTER_SAMPLE_SIZE 7
 
+#ifdef USE_BME280
+#include <Adafruit_BME280.h>
+#include <Adafruit_Sensor.h>
 
 enum
 {
@@ -28,33 +30,6 @@ enum
     BME280_PRESSURE,
     BME280_ALTITUDE,
 };
-
-enum
-{
-    VL53L0X_DISTANCE = 0,
-};
-
-enum
-{
-    BATTERY_LEVEL = 0,
-    BATTERY_VOLTAGE,
-};
-
-enum
-{
-    SI1132_VISIBLE = 0,
-    SI1132_IR,
-    SI1132_UV,
-};
-
-enum
-{
-    ZFORCE_TOUCH,
-    ZFORCE_X,
-    ZFORCE_Y,
-    ZFORCE_STATUS,
-};
-
 
 class SensorBME280 : public Sensor
 {
@@ -83,6 +58,15 @@ public:
     void updatePressure();
     void updateAltitude();
 };
+#endif
+
+#ifdef USE_VL53L0X
+#include <VL53L0X.h>
+
+enum
+{
+    VL53L0X_DISTANCE = 0,
+};
 
 class SensorVL53L0X : public Sensor
 {
@@ -104,6 +88,17 @@ public:
     void init();
     float readDataPoint(uint8_t channel, bool getRawData);
     void updateData();
+};
+#endif
+
+#ifdef USE_SI1132
+#include <ODROID_Si1132.h>
+
+enum
+{
+    SI1132_VISIBLE = 0,
+    SI1132_IR,
+    SI1132_UV,
 };
 
 class SensorSi1132 : public Sensor
@@ -131,6 +126,16 @@ public:
     void updateVisible();
     void updateUV();
 };
+#endif
+
+#ifdef USE_BATTERY
+#include <Battery.h>
+
+enum
+{
+    BATTERY_LEVEL = 0,
+    BATTERY_VOLTAGE,
+};
 
 class SensorBattery : public Sensor
 {
@@ -152,13 +157,24 @@ public:
     void updateLevel(uint8_t adjustment = 24);
     void updateVoltage();
 };
+#endif
 
+#ifdef USE_ZFORCE
+#include <Zforce.h>
 
 typedef struct TouchPoint
 {
     Location loc;
     uint8_t state;
 } TouchPoint;
+
+enum
+{
+    ZFORCE_TOUCH,
+    ZFORCE_X,
+    ZFORCE_Y,
+    ZFORCE_STATUS,
+};
 
 class Touch : public Sensor
 {
@@ -180,6 +196,7 @@ public:
     void init();
     float readDataPoint(uint8_t channel, bool getRawData);
     void updateTouch();
-    TouchPoint * getLatestTouch();
+    TouchPoint *getLatestTouch();
     uint16_t getParameters(uint16_t input);
 };
+#endif

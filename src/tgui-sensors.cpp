@@ -13,6 +13,7 @@
 #define SEALEVELPRESSURE_HPA (1013.25)
 #define DATA_READY 17 //PD2(INT0) on Odroid
 
+#ifdef USE_BME280
 //------------------------- BME280 -------------------------------------/
 void SensorBME280::init()
 {
@@ -68,7 +69,7 @@ float SensorBME280::readDataPoint(uint8_t channel = 0, bool getRawData = false)
         filter = &_filter;
         break;
     }
-    
+
     if (getRawData)
     {
         return filter->getElement(filter->getSize() - 1);
@@ -93,15 +94,17 @@ void SensorBME280::updatePressure()
 {
     // usually the pressure stays between 980 and 1030hpa
     // Record in Sweden shows the upper and lower bounds are 938.4 and 1063.7hpa
-    addDataPoint(BME280_PRESSURE, (_phy.readPressure()-98000.0)/1000.0);
+    addDataPoint(BME280_PRESSURE, (_phy.readPressure() - 98000.0) / 1000.0);
 }
 
 void SensorBME280::updateAltitude()
 {
     addDataPoint(BME280_ALTITUDE, _phy.readAltitude(SEALEVELPRESSURE_HPA));
 }
+#endif
 
 //------------------------ VL53L0X ---------------------------------------/
+#ifdef USE_VL53L0X
 #define LONG_RANGE
 //#define HIGH_SPEED
 #define HIGH_ACCURACY
@@ -152,8 +155,10 @@ void SensorVL53L0X::updateData()
 {
     addDataPoint(0, _phy.readRangeSingleMillimeters());
 }
+#endif
 
 //------------------------ Si1132 ---------------------------------------/
+#ifdef USE_SI1132
 void SensorSi1132::init()
 {
     _phy.begin();
@@ -225,8 +230,10 @@ void SensorSi1132::updateUV()
 {
     addDataPoint(SI1132_UV, _phy.readUV());
 }
+#endif
 
 //------------------------ Battery ---------------------------------------/
+#ifdef USE_BATTERY
 void SensorBattery::init()
 {
     _phy.begin(1094, 4.076923, &sigmoidal);
@@ -271,8 +278,10 @@ void SensorBattery::updateLevel(uint8_t adjustment)
 {
     addDataPoint(BATTERY_LEVEL, _phy.level() + adjustment); // add 24 so that 75%-100% is shown as full power
 }
+#endif
 
 //------------------------ Zforce touch ---------------------------------------/
+#ifdef USE_ZFORCE
 void Touch::init()
 {
     _phy.Start(DATA_READY);
@@ -283,7 +292,7 @@ void Touch::init()
         // Sprintln(F("zForce touch sensor detected"));
     }
     _phy.DestroyMessage(msg);
-    
+
     _phy.ReverseX(true); // Send and read ReverseX
     do
     {
@@ -305,7 +314,7 @@ void Touch::init()
     _phy.DestroyMessage(msg);
     // Sprintln(F("Changed frequency"));
 
-    _phy.Enable(true);  // Send and read Enable
+    _phy.Enable(true); // Send and read Enable
     do
     {
         msg = _phy.GetMessage();
@@ -320,14 +329,14 @@ void Touch::init()
 
 void Touch::addDataPoint(uint8_t channel, float data)
 {
-    Message* touch = _phy.GetMessage();
-    if(touch != NULL)
+    Message *touch = _phy.GetMessage();
+    if (touch != NULL)
     {
-        if(touch->type == MessageType::TOUCHTYPE)
+        if (touch->type == MessageType::TOUCHTYPE)
         {
-            _touch.loc.x = ((TouchMessage*)touch)->touchData[0].x;
-            _touch.loc.y = ((TouchMessage*)touch)->touchData[0].y;
-            _touch.state = ((TouchMessage*)touch)->touchData[0].event;
+            _touch.loc.x = ((TouchMessage *)touch)->touchData[0].x;
+            _touch.loc.y = ((TouchMessage *)touch)->touchData[0].y;
+            _touch.state = ((TouchMessage *)touch)->touchData[0].event;
             // Serial.print("X/Y/Event: ");
             // Sprint(_touch.x);
             // Serial.print(" / ");
@@ -353,7 +362,7 @@ float Touch::readDataPoint(uint8_t channel = 0, bool getRawData = false)
     }
 }
 
-TouchPoint * Touch::getLatestTouch(void)
+TouchPoint *Touch::getLatestTouch(void)
 {
     return &_touch;
 }
@@ -375,3 +384,4 @@ void Touch::updateTouch()
 {
     addDataPoint(ZFORCE_TOUCH, 0);
 }
+#endif
