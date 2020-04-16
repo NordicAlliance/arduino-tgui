@@ -9,19 +9,13 @@
 
 #include <Arduino.h>
 #include <Ticker.h>
-#include <tgui.h>
 #include <tgui-sensors.h>
+#include <tgui.h>
 
-
-// #define USE_SI1132  1
-// #define USE_VL53L0X 1
-#define USE_BME280  1
-#define USE_BATTERY 1
-// #define USE_ZFORCE 1
+Adafruit_ILI9341 tft = Adafruit_ILI9341(10, 9, 8);
 
 const uint8_t backlightPin = 5;
 uint8_t backlightPwm = 255;
-
 
 #ifdef USE_VL53L0X
 SensorVL53L0X tof = SensorVL53L0X(0x67, 100);
@@ -47,7 +41,7 @@ Label tofLable = Label(
     "mm",
     5,
     2,
-    Label::ONLY_INTEGER,
+    Label::INTEGER_SIGNED,
     4,
     Label::DRAW_ON_RIGHT,
     VL53L0X_DISTANCE);
@@ -108,7 +102,7 @@ Label irLable = Label(
     "lux",
     5,
     2,
-    Label::ONLY_INTEGER,
+    Label::INTEGER_UNSIGNED,
     6,
     Label::DRAW_ON_BOTTOM,
     SI1132_IR);
@@ -166,9 +160,9 @@ Label humidityLable = Label(
     foregroundColor,
     &bme,
     "%",
-    5,
+    3,
     2,
-    Label::HAS_DECIMAL,
+    Label::FLOAT_SIGNED,
     4,
     Label::DRAW_ON_BOTTOM,
     BME280_HUMIDITY);
@@ -177,9 +171,9 @@ Label temperatureLable = Label(
     foregroundColor,
     &bme,
     "c",
-    5,
+    3,
     2,
-    Label::HAS_DECIMAL,
+    Label::FLOAT_SIGNED,
     4,
     Label::DRAW_ON_BOTTOM,
     BME280_TEMPERATURE);
@@ -188,10 +182,10 @@ Label pressureLable = Label(
     foregroundColor,
     &bme,
     "hPa",
-    5,
+    3,
     2,
-    Label::HAS_DECIMAL,
-    5,
+    Label::FLOAT_SIGNED,
+    4,
     Label::DRAW_ON_BOTTOM,
     BME280_PRESSURE);
 Label altitudeLable = Label(
@@ -199,10 +193,10 @@ Label altitudeLable = Label(
     foregroundColor,
     &bme,
     "m",
-    5,
+    3,
     2,
-    Label::HAS_DECIMAL,
-    5,
+    Label::FLOAT_SIGNED,
+    4,
     Label::DRAW_ON_BOTTOM,
     BME280_ALTITUDE);
 
@@ -237,13 +231,13 @@ ProgressBar batteryPbar = ProgressBar(
     1,
     BATTERY_LEVEL);
 Label batteryVoltageLable = Label(
-    {200, 10},
+    {180, 10},
     foregroundColor,
     &battery,
     "mv",
     2,
     1,
-    Label::ONLY_INTEGER,
+    Label::INTEGER_SIGNED,
     4,
     Label::DRAW_ON_RIGHT,
     BATTERY_VOLTAGE);
@@ -264,7 +258,7 @@ Label airX = Label(
     "mm",
     2,
     1,
-    Label::ONLY_INTEGER,
+    Label::INTEGER_SIGNED,
     4,
     Label::DRAW_ON_RIGHT,
     ZFORCE_X);
@@ -275,7 +269,7 @@ Label airY = Label(
     "mm",
     2,
     1,
-    Label::ONLY_INTEGER,
+    Label::INTEGER_SIGNED,
     4,
     Label::DRAW_ON_RIGHT,
     ZFORCE_Y);
@@ -321,8 +315,8 @@ void setup()
     Serial.begin(115200);
     Sprintln(F("Tgui showcase"));
 
-    Wire.begin();    // Zforce lib uses a different I2C lib
-    InitializeScreen();
+    Wire.begin(); // Zforce lib uses a different I2C lib
+    TGUI::InitializeScreen();
 
 #ifdef USE_BATTERY
     battery.init();
@@ -384,7 +378,7 @@ void loop(void)
     tofEvent.update();
     tofPbar.update();
     tofLable.update();
-    if(tofEvent.counter() != tofEventPreviousCounter)
+    if (tofEvent.counter() != tofEventPreviousCounter)
     {
         tofChart.update();
         tofEventPreviousCounter = tofEvent.counter();
@@ -401,7 +395,7 @@ void loop(void)
     temperatureLable.update();
     pressureLable.update();
     altitudeLable.update();
-    if(bmeEvent.counter() != bmeEventPreviousCounter)
+    if (bmeEvent.counter() != bmeEventPreviousCounter)
     {
         humidityChart.update();
         bmeEventPreviousCounter = bmeEvent.counter();
@@ -419,7 +413,7 @@ void loop(void)
 #ifdef USE_ZFORCE
     airEvent.update();
     airLabelEvent.update();
-    if(airEvent.counter() != airEventPreviousCounter)
+    if (airEvent.counter() != airEventPreviousCounter)
     {
         airPlot.update();
         airEventPreviousCounter = airEvent.counter();
