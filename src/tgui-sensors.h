@@ -19,6 +19,47 @@
 /* Parameters */
 #define FILTER_SAMPLE_SIZE 7
 
+//------------------------- Analog input --------------------------------/
+class SensorAdc : public Sensor
+{
+private:
+    uint8_t _pin;
+    RunningMedian _filter = RunningMedian(FILTER_SAMPLE_SIZE);
+    void addDataPoint(uint8_t channel, float data) { _filter.add(data); }
+
+public:
+    SensorAdc( uint8_t pin = A0, uint16_t reportInterval = 50) {
+        _pin = pin;
+        _reportInterval = reportInterval;
+        _filterSize = 4;
+    }
+
+    void init() { pinMode(_pin, INPUT); }
+
+    float readDataPoint(uint8_t channel = 0, bool getRawData = false) {
+        if (getRawData)
+            return _filter.getElement(_filter.getSize() - 1);
+        else
+            return _filter.getAverage(_filterSize);
+    }
+
+    void updateValue() { addDataPoint(0, analogRead(_pin)); }
+};
+
+//------------------------- Digital input -------------------------------------/
+class SensorDigital : public Sensor
+{
+private:
+    float _value;
+
+public:
+    SensorDigital() {}
+    void init() {}
+    float readDataPoint(uint8_t channel = 0, bool getRawData = false) { return _value; }
+    void updateValue(float input) { _value = input; }
+};
+
+//------------------------- BME280 -------------------------------------/
 #ifdef USE_BME280
 #include <Adafruit_BME280.h>
 #include <Adafruit_Sensor.h>
@@ -60,6 +101,7 @@ public:
 };
 #endif
 
+//------------------------ VL53L0X ---------------------------------------/
 #ifdef USE_VL53L0X
 #include <VL53L0X.h>
 
@@ -91,6 +133,7 @@ public:
 };
 #endif
 
+//------------------------ Si1132 ---------------------------------------/
 #ifdef USE_SI1132
 #include <ODROID_Si1132.h>
 
@@ -128,6 +171,7 @@ public:
 };
 #endif
 
+//------------------------ Battery ---------------------------------------/
 #ifdef USE_BATTERY
 #include <Battery.h>
 
@@ -159,6 +203,7 @@ public:
 };
 #endif
 
+//------------------------ Zforce touch ---------------------------------------/
 #ifdef USE_ZFORCE
 #include <Zforce.h>
 
