@@ -7,10 +7,10 @@
  *
  */
 
-#include <tgui-common.h>
-
 #include <Adafruit_GFX.h>
-
+#include <Adafruit_ILI9341.h>
+#include <SPI.h>
+#include <tgui-common.h>
 
 /* REGISTERS */
 
@@ -20,6 +20,7 @@
 
 void InitializeScreen();
 
+//------------------------ Base class ---------------------------------------/
 class TguiElement
 {
     protected:
@@ -41,6 +42,7 @@ class TguiElement
         Adafruit_GFX *screen;
 };
 
+//------------------------ Progress Bar ---------------------------------------/
 class ProgressBar : public TguiElement
 {
     private:
@@ -64,6 +66,7 @@ class ProgressBar : public TguiElement
         void drawBlocks(uint8_t previousProgress, uint8_t progress);
 };
 
+//------------------------ Running Chart ---------------------------------------/
 class RunningChart : public TguiElement
 {
     private:
@@ -88,6 +91,7 @@ class RunningChart : public TguiElement
         void update();
 };
 
+//------------------------ Label ---------------------------------------/
 class Label : public TguiElement
 {
 private:
@@ -96,7 +100,7 @@ private:
     uint8_t _unitSize;
     bool _unitLocation;
     uint8_t _nDigitMax;
-    bool _onlyInteger;
+    uint8_t _numberType;
 
 public:
     Label(
@@ -106,7 +110,7 @@ public:
         const char *unit,
         uint8_t textSize,
         uint8_t unitSize,
-        bool onlyInteger = ONLY_INTEGER,
+        uint8_t numberType = INTEGER_SIGNED,
         uint8_t nDigitMax = 4,
         bool unitLocation = DRAW_ON_RIGHT,
         uint8_t dataType = 0);
@@ -125,11 +129,34 @@ public:
 
     enum
     {
-        HAS_DECIMAL = 0,
-        ONLY_INTEGER = 1
+        FLOAT_SIGNED = 0,
+        FLOAT_UNSIGNED = 1,
+        INTEGER_SIGNED = 2,
+        INTEGER_UNSIGNED = 3
     };
 };
 
+//------------------------ Round Indicator ------------------------------/
+class Indicator : public TguiElement
+{
+private:
+    uint8_t _dataType2;
+    float _value2;
+    void _drawBorder();
+
+public:
+    Indicator(
+        Location loc,
+        Sensor *sensor,
+        uint8_t dataTypeUpper,
+        uint8_t dataTypeLower);
+
+    void init();
+
+    void update();
+};
+
+//------------------------ XyPlot ---------------------------------------/
 class XyPlot : public TguiElement
 {
     private:
@@ -173,3 +200,39 @@ class XyPlot : public TguiElement
         SAME_LOCATION = 2
     };
 };
+
+//------------------------ Textbox ---------------------------------------/
+class Textbox : public TguiElement
+{
+private:
+    Location _lastCursor;
+    uint8_t _textSize;
+    uint8_t padding;
+    uint8_t charW;
+    uint8_t charH;
+    Size canvas;
+    uint8_t maxCol;
+    uint8_t maxRow;
+
+public:
+    Textbox(
+        Location loc,
+        Size size,
+        uint8_t textSize,
+        Sensor *sensor);
+    void init();
+    void nextCursor(uint16_t textLength);
+    void setCursor();
+    void update(char *buf, uint16_t length);
+};
+
+extern Adafruit_ILI9341 tft;
+namespace TGUI
+{
+void InitializeScreen();
+
+uint8_t countDigits(int num);
+
+uint8_t countFloatDigits(float num);
+
+} // namespace TGUI

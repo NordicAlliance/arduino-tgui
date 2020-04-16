@@ -9,9 +9,6 @@
 
 #include "tgui.h"
 
-#include <SPI.h>
-#include <Adafruit_ILI9340.h>
-
 /* REGISTERS */
 #define _cs 10
 #define _dc 9
@@ -30,12 +27,12 @@
 #define screenHeight 240
 #define screenPadding 10
 #define borderPadding 2
+#define widgetPadding 5
 #define widgetStart (pbar_text_width + screenPadding)
 #define widgetWidth (screenWidth - widgetStart - screenPadding)
 
-
-Adafruit_ILI9340 tft = Adafruit_ILI9340(_cs, _dc, _rst);
-
+namespace TGUI
+{
 void InitializeScreen()
 {
     tft.begin();
@@ -45,6 +42,8 @@ void InitializeScreen()
 
 uint8_t countDigits(int num)
 {
+    if (num == 0)
+        return 1;
     uint8_t count = 0;
     if (num < 0)
     {
@@ -72,14 +71,16 @@ uint8_t countFloatDigits(float num)
     return count;
 }
 
+} // namespace TGUI
+
 //------------------------ Tgui Element ---------------------------------------/
 void TguiElement::drawBorder()
 {
     screen->drawRoundRect(
         _loc.x - borderPadding * 2,
-        _loc.y - borderPadding,
+        _loc.y - borderPadding * 2,
         _size.width + borderPadding * 4,
-        _size.height + borderPadding * 2,
+        _size.height + borderPadding * 4,
         4,
         _color);
 }
@@ -181,7 +182,7 @@ Label::Label(
     const char *unit,
     uint8_t textSize,
     uint8_t unitSize,
-    bool onlyInteger,
+    uint8_t numberType,
     uint8_t nDigitMax,
     bool unitLocation,
     uint8_t dataType)
@@ -196,10 +197,33 @@ Label::Label(
     _textSize = textSize;
     _unitSize = unitSize;
     _nDigitMax = nDigitMax;
-    _size.height = (unitLocation == DRAW_ON_BOTTOM) ? textPixelH(textSize) + textPixelH(unitSize) : textPixelH(textSize);
-    _size.width = (unitLocation == DRAW_ON_BOTTOM) ? textPixelW(textSize) * nDigitMax : textPixelW(textSize) * nDigitMax + textPixelH(unitSize) * strlen(unit);
     _unitLocation = unitLocation;
-    _onlyInteger = onlyInteger;
+    _numberType = numberType;
+
+    auto digits = nDigitMax;
+    switch (_numberType)
+    {
+    case FLOAT_SIGNED:
+        digits += 2;
+        break;
+    case FLOAT_UNSIGNED:
+        digits += 1;
+        break;
+    case INTEGER_SIGNED:
+        digits += 1;
+        break;
+    }
+
+    if (unitLocation == DRAW_ON_BOTTOM)
+    {
+        _size.height = textPixelH(textSize) + textPixelH(unitSize);
+        _size.width = textPixelW(textSize) * (digits);
+    }
+    else
+    {
+        _size.height = textPixelH(textSize);
+        _size.width = textPixelW(textSize) * (digits) + textPixelH(unitSize) * strlen(unit);
+    }
 }
 
 void Label::drawDigits(int value)
@@ -208,7 +232,7 @@ void Label::drawDigits(int value)
     screen->setTextColor(_color, backgroundColor);
     screen->setCursor(_loc.x, _loc.y);
 
-    uint8_t nDigits = countDigits(value);
+    uint8_t nDigits = TGUI::countDigits(value);
 
     if(nDigits <= _nDigitMax)
     {
@@ -231,7 +255,7 @@ void Label::drawDigits(float value)
     screen->setTextColor(_color, backgroundColor);
     screen->setCursor(_loc.x, _loc.y);
 
-    uint8_t nInteger = countDigits((int)value);
+    uint8_t nInteger = TGUI::countDigits((int)value);
 
     if((value == (int)value) || (nInteger + 2 > _nDigitMax))
     {
@@ -294,13 +318,65 @@ void Label::update()
 
     _value = value;
 
-    if(_onlyInteger == true)
+    if(_numberType == INTEGER_SIGNED || _numberType == INTEGER_UNSIGNED)
     {
         drawDigits((int)value);
     }
     else
     {
         drawDigits(value);
+    }
+}
+
+//------------------------ Round Indicator -------------------------------/
+void Indicator::_drawBorder()
+{
+    screen->fillCircle(_loc.x + _size.width / 2, _loc.y + _size.height / 2, _size.width / 2, foregroundColor);
+}
+
+Indicator::Indicator(
+    Location loc,
+    Sensor *sensor,
+    uint8_t dataTypeUpper,
+    uint8_t dataTypeLower)
+{
+    _loc = loc;
+    _size = {100, 100};
+    _color = foregroundColor;
+    _sensor = sensor;
+    screen = &tft;
+    _dataType = dataTypeUpper;
+    _dataType2 = dataTypeLower;
+    _value = 0;
+}
+
+void Indicator::init()
+{
+    _drawBorder();
+    screen->setTextSize(3);
+    screen->setTextColor(backgroundColor, _color);
+}
+
+void Indicator::update()
+{
+    float value = _sensor->readDataPoint(_dataType);
+
+    if (value != _value)
+    {
+        _value = value;
+        uint8_t n = TGUI::countDigits((int)value);
+        screen->setCursor(_loc.x + _size.width / 2 - n * 9, _loc.y + _size.height / 4);
+        screen->println((int)value);
+    }
+
+    float value2 = _sensor->readDataPoint(_dataType2);
+
+    if (value2 != _value2)
+    {
+        _value2 = value2;
+        uint8_t n = TGUI::countDigits((int)value2);
+        screen->setCursor(_loc.x + _size.width / 2 - n * 9, _loc.y + _size.height / 2 + 10);
+        screen->println((int)value2);
     }
 }
 
@@ -521,4 +597,82 @@ void XyPlot::update()
     default:
         break;
     }
+}
+
+//------------------------ Textbox ---------------------------------------/
+
+Textbox::Textbox(
+    Location loc,
+    Size size,
+    uint8_t textSize,
+    Sensor *sensor)
+{
+    _loc = loc;
+    _size = size;
+    _textSize = textSize;
+    _color = foregroundColor;
+    _sensor = sensor;
+    screen = &tft;
+    _dataType = 0;
+    _lastCursor = {0, 0};
+
+    padding = widgetPadding;
+    charW = textPixelW(_textSize);
+    charH = textPixelH(_textSize);
+    canvas = {_size.width - padding * 2, _size.height - padding * 2};
+    maxCol = canvas.width / charW - 2;
+    maxRow = canvas.height / charH;
+}
+
+void Textbox::init()
+{
+    drawBorder();
+    screen->setTextSize(_textSize);
+    screen->setTextColor(backgroundColor, _color);
+    setCursor();
+}
+void Textbox::nextCursor(uint16_t textLength)
+{
+    Location *cursor = &_lastCursor;
+
+    uint16_t x = cursor->x + textLength * charW;
+    uint16_t n = x / (canvas.width - charW);
+    if (n > 0)
+    {
+        cursor->x = x % (canvas.width - charW);
+        if (cursor->x < charW)
+            cursor->x = 0;
+        cursor->y += n * charH * 1.75;
+    }
+    else
+    {
+        cursor->x = x;
+    }
+
+    if (cursor->y > ((uint16_t)maxRow - 1) * charH)
+    {
+        cursor->y = 0;
+    }
+}
+void Textbox::setCursor()
+{
+    screen->setCursor(_lastCursor.x + _loc.x + padding,
+                        _lastCursor.y + _loc.y + padding);
+}
+void Textbox::update(char *buf, uint16_t length)
+{
+    screen->setTextSize(_textSize);
+    setCursor();
+    for (size_t i = 0; i < length; i++)
+    {
+        screen->print(buf[i]);
+        nextCursor(1);
+        setCursor();
+    }
+    size_t spaces = (canvas.width - _lastCursor.x) / charW;
+    for (size_t i = 0; i < spaces; i++)
+    {
+        screen->print(" ");
+    }
+    nextCursor(spaces);
 }
